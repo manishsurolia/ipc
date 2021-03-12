@@ -1,0 +1,9 @@
+This program is just a server and client program to show how sockets can be used
+between multiple processes in the same linux device to communicate with each
+other.
+
+One thing to note here, is that, this server serves only one client reqeust at a
+time and not multiple requests.
+
+For serving multiple requests at a time, there will be another program, which
+will use 'select' system call.
