@@ -1,0 +1,9 @@
+This client-server program is to illustrate, how we can use select system call
+to serve more than one client at a time by a server.
+
+select() and pselect() allow a program to monitor multiple file descriptors,
+waiting until one or more of the file descriptors become "ready" for some class
+of I/O operation (e.g., input possible).
+
+A file descriptor is considered ready if it is possible to perform a
+corresponding  I/O  operation without blocking.
