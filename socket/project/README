@@ -1,0 +1,22 @@
+Data Synchronization - IPC Project part 1
+
+This project is to create a client-server process model, where server process is
+responsible for creating/updating routing table, and updating the same to the
+other connected clients processes.
+
+We can call the server process as "Routing Table Manager" (RTM) process and all
+other processes are client processes.
+
+
+
+RTM <---> Client1
+     |
+     |<--> Client2
+     |
+     |<--> Client3
+     |
+     |<--> Client4
+     |
+     |
+     .....
+     .....
