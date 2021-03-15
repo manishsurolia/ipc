@@ -4,7 +4,7 @@ routing_table rt;
 void initialize_monitor_fd_set(int *monitored_fd_set, int max_fd_count)
 {
     for(int i=0; i<max_fd_count; i++) {
-       monitored_fd_set[i] = -1; 
+       monitored_fd_set[i] = -1;
     }
     return;
 }
@@ -39,7 +39,7 @@ void refresh_fd_set(int *monitored_fd_set, int max_fd_count, fd_set *fd_set_ptr)
     for (int i=0; i < max_fd_count; i++) {
        if (monitored_fd_set[i] != -1) {
            FD_SET(monitored_fd_set[i], fd_set_ptr);
-       } 
+       }
     }
     return;
 }
@@ -55,35 +55,22 @@ int get_max_fd(int *monitored_fd_set, int max_fd_count)
     return max;
 }
 
-void dump_existing_table_to_client(int data_socket)
+void dump_existing_table_to_all_clients(int monitored_fd_set[], int max_clients)
 {
     char buffer[BUFFER_SIZE];
     memset(buffer, 0, sizeof(buffer));
-    rt.count = 1;
-    strcpy(rt.rt_internal[0].oif,"e0/0");
-    strcpy(rt.rt_internal[0].destination, "1.2.3.4");
-    strcpy(rt.rt_internal[0].gateway_ip, "12.34.56.78");
-    rt.rt_internal[0].mask = 10;
     memcpy(buffer, &rt, sizeof(rt));
-    if (write(data_socket, buffer, sizeof(buffer)) == -1) {
-        perror("write");
-        return;
-    }
-    memset(buffer, 0, sizeof(buffer));
-    rt.count = 2;
-    strcpy(rt.rt_internal[1].oif,"e0/1");
-    strcpy(rt.rt_internal[0].destination, "11.22.33.44");
-    strcpy(rt.rt_internal[0].gateway_ip, "123.345.567.789");
-    rt.rt_internal[0].mask = 11;
-    memcpy(buffer, &rt, sizeof(rt));
-    if (write(data_socket, buffer, sizeof(buffer)) == -1) {
-        perror("write");
-        return;
+    for (int i=0; i<max_clients; i++) {
+        if ((monitored_fd_set[i] != -1)) {
+            if (write(monitored_fd_set[i], buffer, sizeof(buffer)) == -1) {
+                perror("write");
+            }
+        }
     }
     return;
 }
 
-void start_server(int connection_socket, int * monitored_fd_set, int max_clients)
+void client_syncup(int connection_socket, int * monitored_fd_set, int max_clients)
 {
     int ret;
     int result;
@@ -92,9 +79,8 @@ void start_server(int connection_socket, int * monitored_fd_set, int max_clients
     fd_set readfds;
     int comm_socket_fd, i;
     int data_socket;
-    initialize_monitor_fd_set(monitored_fd_set, max_clients);
 
-    tv.tv_sec = 15;
+    tv.tv_sec = 1;
     tv.tv_usec = 0;
 
     /*
@@ -103,8 +89,6 @@ void start_server(int connection_socket, int * monitored_fd_set, int max_clients
      * descriptors to global list for further communication.
      */
     while(1) {
-        printf("\nCalling select for connection socket : %d\n",
-                connection_socket);
         FD_ZERO(&readfds);
         FD_SET(connection_socket, &readfds);
         if (select(connection_socket+1, &readfds, NULL, NULL, &tv) == -1) {
@@ -120,18 +104,15 @@ void start_server(int connection_socket, int * monitored_fd_set, int max_clients
              */
             break;
         } else if (FD_ISSET(connection_socket, &readfds)) {
-            printf("\nGot a connection request from a client\n");
             if ((data_socket = accept(connection_socket, NULL, NULL)) == -1) {
                 perror("accpet");
                 exit(EXIT_FAILURE);
             }
-            printf("\nAdding fd : %d the global fd list for new client\n",
-                    data_socket);
             add_to_monitored_fd_set(monitored_fd_set, max_clients,
                     data_socket);
-            dump_existing_table_to_client(data_socket);
         }
     }
+    dump_existing_table_to_all_clients(monitored_fd_set, max_clients);
 
     /*
      * Second, go through all the client data sockets and send them the data we
@@ -165,7 +146,7 @@ int init_server(int **client_fds, int max)
      */
     temp_client_fds = *client_fds;
     for (int i = 0; i<max; i++) {
-        temp_client_fds[i] = -1; 
+        temp_client_fds[i] = -1;
     }
 
     /*
@@ -177,12 +158,12 @@ int init_server(int **client_fds, int max)
     }
 
     /*
-     * Set and use the name ('struct sockaddr_un') to bind with connection 
+     * Set and use the name ('struct sockaddr_un') to bind with connection
      * socket.
-     */  
+     */
     memset(&name, 0, sizeof(struct sockaddr_un));
     name.sun_family = AF_UNIX;
-    strncpy(name.sun_path, SOCKET_NAME, sizeof(name.sun_path) - 1); 
+    strncpy(name.sun_path, SOCKET_NAME, sizeof(name.sun_path) - 1);
 
     if (bind(connection_socket, (const struct sockaddr *) &name,
                 sizeof(struct sockaddr_un)) == -1) {
@@ -204,6 +185,9 @@ int main(int argc, char **argv)
 {
     int connection_socket;
     int *client_fds;
+    unsigned count = rt.count;
+    int total_new_entries;
+    rt.count = 0;
 
     /*
      * Init server metadata.
@@ -213,10 +197,37 @@ int main(int argc, char **argv)
         printf("Server initialization failed\n");
     }
 
+
+    /*
+     * Initializet the file descriptor array with -1.
+     */
+    initialize_monitor_fd_set(client_fds, MAX_CLIENT_SUPPORTED);
+
     /*
      * Start the server.
      */
-    start_server(connection_socket, client_fds, MAX_CLIENT_SUPPORTED);
+    while(1) {
+        client_syncup(connection_socket, client_fds, MAX_CLIENT_SUPPORTED);
+
+        printf("\nHow many entries you want to add to Routing table?\n");
+        scanf("%d",&total_new_entries);
+
+        for (int i=0; i<total_new_entries; i++) {
+            printf("Destination : ");
+            scanf("%s",rt.rt_internal[rt.count+i].destination);
+            printf("Mask : ");
+            scanf("%d",&rt.rt_internal[rt.count+i].mask);
+            printf("Gateway IP : ");
+            scanf("%s",rt.rt_internal[rt.count+i].gateway_ip);
+            printf("Outgoing interface : ");
+            scanf("%s",rt.rt_internal[rt.count+i].oif);
+        }
+        rt.count = rt.count + total_new_entries;
+        if (rt.count > MAX_ROUTING_ENTRIES) {
+            printf("Enteries exceeding the max allowed count");
+            break;
+        }
+    }
 
     /*
      * Stop the server.

@@ -32,13 +32,13 @@ int main(int argc, char *argv[])
             perror("read");
             exit (EXIT_FAILURE);
         }
-        local_rtm = (routing_table *) buffer; 
-        if (local_rtm->count) {
-            printf("Received from server : %s, %s, %s, %d\n",
-                    local_rtm->rt_internal[0].oif,
-                    local_rtm->rt_internal[0].destination,
-                    local_rtm->rt_internal[0].gateway_ip,
-                    local_rtm->rt_internal[0].mask);
+        local_rtm = (routing_table *) buffer;
+        for (int i=0; i<local_rtm->count; i++) {
+            printf("\n\nReceived from server : %s, %s, %s, %d\n",
+                    local_rtm->rt_internal[i].oif,
+                    local_rtm->rt_internal[i].destination,
+                    local_rtm->rt_internal[i].gateway_ip,
+                    local_rtm->rt_internal[i].mask);
         }
     }
 

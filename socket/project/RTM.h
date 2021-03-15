@@ -11,10 +11,10 @@
 
 typedef struct routing_table_internal
 {
+    int mask;
     char oif[32];
     char destination[16];
     char gateway_ip[16];
-    char mask;
 } routing_table_internal;
 
 typedef struct routing_table
