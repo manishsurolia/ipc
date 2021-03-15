@@ -1,13 +1,4 @@
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-
-#define SOCKET_NAME "/tmp/DemoSocket"
-#define BUFFER_SIZE 128
+#include "RTM.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,6 +7,7 @@ int main(int argc, char *argv[])
     int ret;
     int data_socket;
     char buffer[BUFFER_SIZE];
+    routing_table * local_rtm = NULL;
 
     data_socket = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -34,28 +26,21 @@ int main(int argc, char *argv[])
         exit (EXIT_FAILURE);
     }
 
-    /*
-     * Send arguments.
-     */
-    do {
-        printf("Enter number to send to server : \n");
-        scanf ("%d",&i);
-
-        if (write(data_socket, &i, sizeof(int)) == -1) {
-            perror ("write");
-            break;
+    while(1) {
+        memset(buffer, 0, BUFFER_SIZE);
+        if (read(data_socket, buffer, BUFFER_SIZE) == -1) {
+            perror("read");
+            exit (EXIT_FAILURE);
         }
-        printf("No. of bytes sent = %d, data sent = %d\n",ret, i);
-    } while (i);
-
-
-    memset(buffer, 0, BUFFER_SIZE);
-    if (read(data_socket, buffer, BUFFER_SIZE) == -1) {
-        perror("read");
-        exit (EXIT_FAILURE);
+        local_rtm = (routing_table *) buffer; 
+        if (local_rtm->count) {
+            printf("Received from server : %s, %s, %s, %d\n",
+                    local_rtm->rt_internal[0].oif,
+                    local_rtm->rt_internal[0].destination,
+                    local_rtm->rt_internal[0].gateway_ip,
+                    local_rtm->rt_internal[0].mask);
+        }
     }
-
-    printf("Received from server : %s\n",buffer);
 
     /* Close socket */
 
