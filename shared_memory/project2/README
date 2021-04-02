@@ -1,0 +1,169 @@
+Need more memory??
+Where does malloc get memory from??
+
+Let's find out.
+
+C programs typically get their dynamic memory by calling malloc and they release
+this memory by calling free() when they are done with it.
+
+Malloc is like this magical fountain of memory, which just keeps handing out
+memory whenever we ask for. just malloc(500), malloc (1000)...etc.
+
+But how does it work? where does it gives us memory from?
+
+we can use 'strace' to figure out where malloc is getting memory from?
+
+let's start with first.c to see how malloc is getting its memory. we are going
+to use the utility strace, which will tell us what all system calls were used
+during execution of malloc.
+
+[ ] gcc first.c
+[ ] strace ./a.out 
+
+This gives us below prints,
+
+brk(NULL)                               = 0x5563cd22b000
+brk(0x5563cd24c000)                     = 0x5563cd24c000
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0), ...}) = 0
+write(1, "Got memory! (Address = 0x5563cd2"..., 39Got memory! (Address = 0x5563cd22b2a0)
+) = 39
+write(1, "Got memory! (Address = 0x5563cd2"..., 39Got memory! (Address = 0x5563cd237a10)
+) = 39
+brk(0x5563cd271000)                     = 0x5563cd271000
+write(1, "Got memory! (Address = 0x5563cd2"..., 39Got memory! (Address = 0x5563cd243d70)
+) = 39
+write(1, "Got memory! (Address = 0x5563cd2"..., 39Got memory! (Address = 0x5563cd2500d0)
+) = 39
+write(1, "Got memory! (Address = 0x5563cd2"..., 39Got memory! (Address = 0x5563cd25c430)
+) = 39
+exit_group(0)                           = ?
++++ exited with 0 +++
+
+If you notice in above output, we get the memory using system call brk. Hence,
+it is proved that malloc used 'brk' system call here to allocate memory. 
+
+
+Now, lets increase the size of the memory, we want to allocate and see whether
+malloc still uses the same brk call, or its something else.
+
+lets try to allocate 5000000 bytes of memory every time in this program.
+
+[ ] gcc second.c
+[ ] strace ./a.out 
+
+This gives us below prints,
+
+mmap(NULL, 5001216, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f58f1b84000
+fstat(1, {st_mode=S_IFCHR|0620, st_rdev=makedev(0x88, 0), ...}) = 0
+write(1, "Got memory! (Address = 0x7f58f1b"..., 39Got memory! (Address = 0x7f58f1b84010)
+) = 39
+mmap(NULL, 5001216, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f58f16bf000
+write(1, "Got memory! (Address = 0x7f58f16"..., 39Got memory! (Address = 0x7f58f16bf010)
+) = 39
+mmap(NULL, 5001216, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f58f11fa000
+write(1, "Got memory! (Address = 0x7f58f11"..., 39Got memory! (Address = 0x7f58f11fa010)
+) = 39
+mmap(NULL, 5001216, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f58f0d35000
+write(1, "Got memory! (Address = 0x7f58f0d"..., 39Got memory! (Address = 0x7f58f0d35010)
+) = 39
+mmap(NULL, 5001216, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) = 0x7f58f0870000
+write(1, "Got memory! (Address = 0x7f58f08"..., 39Got memory! (Address = 0x7f58f0870010)
+) = 39
+
+See, this time malloc is calling mmap, instead of brk system calls. 
+
+Conslusion : 'brk' and 'mmap' are the main system calls used for memory
+allocation in linux and other unix based operating systems.
+
+Let's first discuess about 'brk'.
+
+For a process memory layout is as below:
+
+     -----------------------------------------
+    |                                         |
+    |             STACK(extends downwards)    |
+    |                                         |
+    |                                         |
+     -----------------------------------------
+    |                  |                      |
+    |                  |                      |
+    |                  |                      |
+    |                  \/                     |
+    |                  \/                     |
+    |                                         |
+    |                                         |
+    |                                         |
+    |                                         |
+    |                                         |
+    |                 /\                      |
+    |                 /\                      |
+    |                  |                      |
+    |                  |                      |
+    |                  |                      |
+    --------------Program break---------------  <-- Top of the heap is always called 'Program break'.
+    |                                         |     It marks the top of the Heap. If you try to
+    |                                         |     write memory below this memory everything is good.
+    |                                         |     but if you try to go above this memory, you program
+    |                                         |     will crash. The Job of 'brk'/'sbrk' system call is
+    |                                         |     to increase this top of the heap('Program break').
+    |                                         |     Means, moving the 'program break' allocates more
+    |                                         |     memory and moving the 'program break' down, de-allocates
+    |                                         |     the memory. Basically expanding and shrinking the heap.
+                                                    Check for man page for brk/sbrk for the same.
+    |                                         |
+    |         HEAP(extends upwards)           |
+    |                                         |
+    |                                         |
+    ------------------------------------------
+    |                                         |
+    |                                         |
+    |         Global Data (DATA Segment)      |
+    |                                         |
+    ------------------------------------------
+    |                                         |
+    |                                         |
+    |         CODE(TEXT Segment)              |
+    |                                         |
+    -------------------------------------------
+
+
+[ ] gcc third.c 
+[ ] ./a.out 
+First : 0x560b485da000
+Second : 0x560b485da000
+Third : 0x560b485db000
+
+'sbrk' returns the address of where the 'program break' is and if we pass
+something to it, it also increments the 'program break' to that many bytes.
+the return value always returns the address where the 'program break' was before
+extending the memory(heap).
+
+
+Now, lets try to write something on the 'program break' memory address.
+it will crash, as we are trying to write on the heap boundry.
+
+[ ] gcc fourth.c 
+[ ] ./a.out 
+Address(sbrk(0)) : 0x560375499000
+Address(sbrk(0)) : 0x5603754ba000
+Address(sbrk(0)) : 0x5603754ba000
+Address(sbrk(0)) : 0x5603754ba000
+Address(sbrk(0)) : 0x5603754ba000
+Segmentation fault (core dumped)
+
+
+Now, lets see what is mmap.
+
+mmap requests memory from the kernel. In simple terms, it says I need more
+memory in my address space to be usable.
+
+with mmap, OS does not try to play with 'sbrk' system call. Instead, it takes
+this memory from the hard disk. With the use of paging it gives you more memory.
+
+
+Below is a simple example of mmap.
+
+[ ] gcc fifth.c 
+[ ] ./a.out 
+First : 0x7f69def3e000
+Second : 0x7f69def11000
