@@ -1,0 +1,15 @@
+This simple program is to illustrate how to open a shared memory and map it with
+the process.
+
+To open shared memory, use shm_open, this will return a file descriptor and
+this file descriptor we can use with mmap to associate this file descriptor
+memory with the process.
+
+We can also use a file descriptor of a file with mmap, to associate this
+file memory with the process.
+
+[ ] gcc writer.c -lrt -o writer
+[ ] gcc reader.c -lrt -o reader
+
+[ ] ./writer
+[ ] ./reader
