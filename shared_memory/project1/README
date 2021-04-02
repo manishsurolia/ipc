@@ -1,0 +1,86 @@
+Most programers allocate memory. You can malloc, you pass the number of bytes
+you want, and you get back a block of memory and you can put whatever you want
+in it. Integers, floats, strings.. whatever.
+
+But what happens when malloc says, "NO".
+
+To test this I want to write simple program.
+
+- We will allocate a gigabyte of memory over and over again, util malloc fails
+and return NULL and just to see how many gigs we have I am going to count how
+many gigs we have and going to print out the counter we have.
+
+Its a pretty simple program.
+
+But before we run it, when you think its going to stop???
+
+one hypothesis: It may stop around the same RAM size I have in this device, I
+am not doing much with that memory. so may be around 8GB. So, once I allocate
+all that memory(around 8GB), malloc is going to say, "no more memory".
+
+Second hypothesis: May be OS has a limit for each process, in how much memory
+a process can allocate. So, once it hits that much memory, its going to stop
+there. so, in this case OS can stop allocating memory even before 8GB of momory.
+
+Third hypothesis: Or may be, it will take advantage of the fact that it can take
+advantage of the memory available in the hard disk(as a virtual memory), and
+say, "hey, I can associate more memory to this process from the hard-disk, if
+there is less memory present in the RAM".
+This means, it may allow me to allocate more memory than 8GB(on the disk, as
+virtual memory for the process).
+
+when I compile and run first.c file as below:
+
+[ ] gcc first.c
+[ ] ./a.out
+
+it gives below output:
+
+.....
+.....
+Got 57378 GB
+Got 57379 GB
+Got 57380 GB
+Got 57381 GB
+Got 57382 GB
+Got 57383 GB
+Got 57384 GB
+Got 57385 GB
+Got 57386 GB
+Killed
+
+
+You see here, this process was killed after allocating almost 57 Tera bytes of
+memory.
+
+Realy!!!!!!!!!!!!?????????
+
+I dont have this much memory in either my RAM or my hard disk. How is it giving
+this much memory.
+
+Actually OS is facking you. it says that you have this much memory, but its
+actually not present.
+
+Simple put, the Operating System is lying to you. Lies! All Lies!!
+
+when you ask for so many giga bytes of memory, the OS says, "Sure,, yeah.. Go
+ahead take the memory. You can have that giga bytes of memory".
+
+But actually it does not set aside physical memory(RAM or hard-disk) until I
+try to use it.
+
+lets use another example, second.c to see what happens when I actually try to
+write to this memory(using memset) as soon as I get it.
+
+
+[ ] gcc second.c
+[ ] ./a.out
+Killed
+
+
+See, process is just getting killed even when we try to write to the first
+GB of memory which was given to us by OS. This proves that OS lied to us in the
+last example, where we were able to get almost 57 Tera bytes.
+
+it does not set aside the memory for us upfront, when we ask for the memory to
+malloc.
