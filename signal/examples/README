@@ -1,0 +1,176 @@
+signals :
+
+    - SIGINT (can be handled in program)
+    - SIGTERM (can be handled in program)
+    - SIGKILL (can't handle in program).
+    - SIGSTOP (signal to stop)
+    - SIGCONT (signal to continue)
+    - SIGUSR1 (user defined signal1)
+    - SIGUSR2 (user defined signal2)
+    - SIGSEGV (signal on segmentation fault).
+
+
+In linux, macos(unix based OS), we may be using signals but we are not aware of
+it.
+
+for example, when we press control-c on a running process, the process stops
+running.
+
+its a type of signal we are sending to the process through OS.
+
+lets look and example(example1.c)
+
+let's say I have a program(example1.c) which never terminates. it just goes
+forever after it starts the execution.
+
+when you run this program, it runs for sometime and when you try to kill it
+using control-c, you are sending a signal to this process to kill it. This
+signal is called SIGINT. It just terminates the program.
+
+[ ] gcc example1.c 
+[ ] ./a.out 
+Wasting CPU cycles. pid : 5933
+Wasting CPU cycles. pid : 5933
+Wasting CPU cycles. pid : 5933
+Wasting CPU cycles. pid : 5933
+Wasting CPU cycles. pid : 5933
+^C
+[ ]
+
+Above is a very basic example of a signal. 
+
+
+============================================
+Now, Let's try to see, whether we can catch this signal inside a process and
+change this behaviour?
+
+Just add a system call 'signal' to the main program(example2.c) to handle the
+SIGINT and print something as below(I won't die!).
+
+now, if you compile and run the program, it will just handle this control-c and
+just print this message and wont do anything else. you need to stop this process
+from outside with this command (kill -TERM 5981).
+
+[ ] gcc example2.c 
+[ ] ./a.out 
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+^CI won't die!
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+I won't die!
+Wasting CPU cycles. pid : 5981
+^CWasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Wasting CPU cycles. pid : 5981
+Terminated
+
+
+Here, we have killed the process, but sending a termination signal. 
+
+
+============================================
+Now, lets try to see whether we can handle the 'SIGTERM' signal also or not?
+
+After starting the program(example3.c) as below:
+    - first try with 'control-c' , it does not stop.
+    - second try with 'kill -TERM 2420' from other terminal. it again does not
+        stop, because now we have handeled SIGTERM also in the program.
+    - Now, to stop it, try 'kill -9 2420'. this will kill the process. This
+        time you are sending 'SIGKILL' signal to the process. Now, you can not
+        handle 'SIGKILL' in your process, because OS does not allow you to do
+        so.
+
+[ ] gcc example3.c 
+[ ] ./a.out 
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+^CI won't die!
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+I won't die!
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+I won't die!
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Wasting CPU cycles. pid : 2420
+Killed
+
+Note : You can handle 'SIGKILL' in your process any time.
+
+lets try to write code for that and check it out.
+
+
+
+============================================
+
+with example4.c, I have added code to handle 'SIGKILL' also.
+and tried to kill it from outside using 'kill -9 2557'.
+it gets killed. means, you cant handle 'SIGKILL' in a program.
+
+
+[ ] gcc example4.c 
+[ ] ./a.out 
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+^CI won't die!
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Wasting CPU cycles. pid : 2557
+Killed
+
+
+
+============================================
+
+Now lets try to write handler for 'SIGSEGV' (example5.c)
+
+
+[ ] gcc example5.c
+[ ] ./a.out
+
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+I won't die!
+Killed
+
+Here, since we are handeling the SIGSEGV signal, it does not crash and stop.
+rather it continusly tries to write data on the illegal memory. 
+
+so we get so many of these prints. you just need to find the process id, and
+kill the process.
+
+
