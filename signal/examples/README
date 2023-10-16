@@ -9,7 +9,6 @@ signals :
     - SIGUSR2 (user defined signal2)
     - SIGSEGV (signal on segmentation fault).
 
-
 In linux, macos(unix based OS), we may be using signals but we are not aware of
 it.
 
@@ -38,7 +37,6 @@ Wasting CPU cycles. pid : 5933
 [ ]
 
 Above is a very basic example of a signal. 
-
 
 ============================================
 Now, Let's try to see, whether we can catch this signal inside a process and
@@ -73,9 +71,7 @@ Wasting CPU cycles. pid : 5981
 Wasting CPU cycles. pid : 5981
 Terminated
 
-
 Here, we have killed the process, but sending a termination signal. 
-
 
 ============================================
 Now, lets try to see whether we can handle the 'SIGTERM' signal also or not?
@@ -117,10 +113,7 @@ Note : You can handle 'SIGKILL' in your process any time.
 
 lets try to write code for that and check it out.
 
-
-
 ============================================
-
 with example4.c, I have added code to handle 'SIGKILL' also.
 and tried to kill it from outside using 'kill -9 2557'.
 it gets killed. means, you cant handle 'SIGKILL' in a program.
@@ -142,10 +135,7 @@ Wasting CPU cycles. pid : 2557
 Wasting CPU cycles. pid : 2557
 Killed
 
-
-
 ============================================
-
 Now lets try to write handler for 'SIGSEGV' (example5.c)
 
 
@@ -174,3 +164,43 @@ so we get so many of these prints. you just need to find the process id, and
 kill the process.
 
 
+============================================
+SIGTERM vs SIGKILL: What's the Difference?
+
+Both SIGTERM and SIGKILL are used for killing a process in Linux. But you should
+prefer using SIGTERM.
+
+By default, kill command sends the SIGTERM signal. You may explicitly mention it
+with -15 but that’s redundant.
+
+kill -15 <pid>
+kill -TERM <pid>
+kill <pid>
+
+All the above commands do the same.
+
+The SIGTERM can also be referred as a soft kill because the process that
+receives the SIGTERM signal may choose to ignore it.
+
+The SIGKILL is used for immediate termination of a process. This signal cannot
+be ignored or blocked. The process will be terminated along with its threads
+(if any).
+
+You can use the option -9 to send the SIGKILL signal with the kill command and
+kill the process immediately.
+
+kill -9 <pid>
+
+difference:
+----------
+Though both of these signals are used for killing a process, there are some
+differences between the two:
+
+SIGTERM gracefully kills the process (give a chance to the process to complete
+its work and then exit) whereas SIGKILL kills the process immediately.
+
+SIGTERM signal can be handled, ignored, and blocked, but SIGKILL cannot be
+handled or blocked.
+
+SIGTERM doesn’t kill the child processes. SIGKILL kills the child processes as
+well.
