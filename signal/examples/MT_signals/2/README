@@ -1,0 +1,79 @@
+Establish a signal handler for two threads and trigger signals from each of
+them. Determine whether a signal raised by a thread is handled by the same
+thread or a different one.
+
+In this program, we initially raise a signal in the main thread and then again
+in the newly created thread. When the signal is raised by the main thread, it is
+handled by the main thread itself. Similarly, when the second thread raises a
+signal, it is handled by that same thread. By examining the tracebacks below
+(from the signal handler), it becomes evident that the signal is handled by the
+thread that raised it.
+
+Note : To prevent being trapped in the loop, we modify the thread context within
+the signal handler to transition to the subsequent instruction following the
+problematic code.
+
+[ ] gcc signal_handling_with_multiple_threads1.c -lpthread -o signal_handling_with_multiple_threads1
+[ ] ./signal_handling_with_multiple_threads1
+Continute with normal flow in main thread
+Continute with normal flow in thread T1
+
+Now, lets load the program in gdb and look for tracebacks for each case.
+
+[ ] gdb ./signal_handling_with_multiple_threads1
+(gdb) b signal_handler
+Breakpoint 1 at 0x1291
+(gdb) run
+Starting program: /home/manish/learn/git/ipc/signal/examples/MT_signals/2/signal_handling_with_multiple_threads1
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+[New Thread 0x7ffff7bff6c0 (LWP 4619)]
+
+Thread 1 "signal_handling" received signal SIGSEGV, Segmentation fault.
+0x00005555555553ee in main ()
+(gdb) c
+Continuing.
+
+Thread 1 "signal_handling" hit Breakpoint 1, 0x0000555555555291 in signal_handler ()
+(gdb) bt
+#0  0x0000555555555291 in signal_handler ()
+#1  <signal handler called>
+#2  0x00005555555553ee in main ()
+(gdb) c
+Continuing.
+Continute with normal flow in main thread
+
+Thread 2 "signal_handling" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7ffff7bff6c0 (LWP 4619)]
+0x00005555555552e5 in thread_func ()
+(gdb) c
+Continuing.
+
+Thread 2 "signal_handling" hit Breakpoint 1, 0x0000555555555291 in signal_handler ()
+(gdb) bt
+#0  0x0000555555555291 in signal_handler ()
+#1  <signal handler called>
+#2  0x00005555555552e5 in thread_func ()
+#3  0x00007ffff7c8f6ba in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:444
+#4  0x00007ffff7d1e120 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
+(gdb)
+
+Note the tracebacks here,
+
+First time (when signal raisd by the main thread).
+
+Thread 1 "signal_handling" hit Breakpoint 1, 0x0000555555555291 in signal_handler ()
+(gdb) bt
+#0  0x0000555555555291 in signal_handler ()
+#1  <signal handler called>
+#2  0x00005555555553ee in main ()
+
+Second time (when signal raisd by the new thread),
+
+Thread 2 "signal_handling" hit Breakpoint 1, 0x0000555555555291 in signal_handler ()
+(gdb) bt
+#0  0x0000555555555291 in signal_handler ()
+#1  <signal handler called>
+#2  0x00005555555552e5 in thread_func ()
+#3  0x00007ffff7c8f6ba in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:444
+#4  0x00007ffff7d1e120 in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:81
