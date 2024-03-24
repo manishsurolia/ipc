@@ -1,0 +1,189 @@
+Establishing a signal handler for a single thread using sigaction involves the
+following steps:
+
+(a) Setting up a basic signal handler demonstrates that its execution is
+seamlessly integrated into the stack flow of the running thread, with an
+additional frame related to the signal call from the Linux kernel. Upon signal
+arrival, the sole active main thread is halted, and its context (including stack
+and register data) is transmitted to the signal handler. This context enables
+the kernel to resume thread execution after the signal handler completes its
+task.
+
+(b) Upon the signal handler's return, execution seamlessly resumes in the thread
+from the point where it was interrupted by the signal.
+
+(c) Regardless of the signal's source—whether it originates from within the
+thread or externally—the aforementioned behaviors remain consistent.
+
+signal_handling_with_single_thread1.c
+-------------------------------------
+
+Here, We get a SIGSEGV from the running thread itself with below code,
+
+	*(int *)NULL = 0; // Illegal memory access. 
+    printf("Continute with normal flow\n");
+
+This process initiates a signal from within the thread, causing the kernel to
+halt the thread's execution. It's important to note that this interruption isn't
+a traditional function call or jump; rather, the kernel suspends thread
+execution, preserves its context, and then redirects to the signal handler.
+After the signal handler completes its task, it returns to the caller,
+reinstating the same context (including the last executed instruction) to the
+registers and stack. Consequently, execution resumes from the exact instruction
+where the signal was initially triggered. This cycle repeats infinitely as the
+same instruction triggers the signal again, resulting in an endless loop of
+signal raising and handling.
+
+As a result of this behavior, the process becomes trapped in a perpetual cycle
+of signal raising and handling, preventing the program from progressing to the
+point where it would print "Continue with normal flow.
+
+[ ] gcc signal_handling_with_single_thread1.c -o signal_handling_with_single_thread1
+[ ] ./signal_handling_with_single_thread1 
+-- Not printing "Continute with normal flow" due to the loop explained above --
+
+Let's now attach gdb to the process and analyse the stack.
+
+[ ] gdb signal_handling_with_single_thread1
+(gdb) b signal_handler
+Breakpoint 1 at 0x11d1
+
+(gdb) run
+Program received signal SIGSEGV, Segmentation fault.
+0x000055555555526f in main ()
+
+(gdb) c
+Continuing.
+Breakpoint 1, 0x00005555555551d1 in signal_handler ()
+
+(gdb) backtrace
+#0  0x00005555555551d1 in signal_handler ()
+#1  <signal handler called>
+#2  0x000055555555526f in main ()
+(gdb)
+
+Here, it clearly shows that the same stack (thread's stack) is used to call the
+signal handler. If we continue from here, execution will again reach to the same
+point of crash and come back to the same signal_handler.
+
+(gdb) c
+Continuing.
+
+Program received signal SIGSEGV, Segmentation fault.
+0x000055555555526f in main ()
+(gdb)
+Continuing.
+
+Breakpoint 1, 0x00005555555551d1 in signal_handler ()
+(gdb)
+
+signal_handling_with_single_thread2.c
+-------------------------------------
+
+Here, the main thread goes in an infinite loop as below and this thread will
+receive SIGSEGV from outside of this process,
+
+    while (1) {
+        sleep(1);
+        printf("Running in an infinite loop\n");
+    }
+
+[ ] gcc signal_handling_with_single_thread2.c -o signal_handling_with_single_thread2
+[ ] ./signal_handling_with_single_thread2
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+....
+....
+
+From a different terminal, send a SIGSEV to this process as below,
+
+[ ] ps -eaf | grep signal_handling_with_single_thread2
+manish      4000    3251  0 09:47 pts/0    00:00:00 ./signal_handling_with_single_thread2
+
+[ ] kill -SIGSEGV 4000
+
+Even after sending this signal, we keep seeing the same logs as below from the
+running process,
+
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+....
+....
+
+Similarly to the first example, in this scenario, execution recommences from the
+precise instruction where the thread was operating when it received the signal.
+Consequently, sending a signal to this process does not produce any discernible
+impact.
+
+Let's load this program in gdb and try again,
+
+[ ] gdb signal_handling_with_single_thread2
+(gdb) b signal_handler
+Breakpoint 1 at 0x11f1
+(gdb) run
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+...
+...
+
+Now, send a signal from outside
+
+[ ] ps -eaf | grep signal_handling_with_single_thread2
+manish      4079    4073  0 10:00 pts/0    00:00:00 /home/manish/learn/git/ipc/signal/examples/MT_signals/1/signal_handling_with_single_thread2
+
+[ ] kill -SIGSEGV 4079
+
+In gdb terminal,
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00007ffff7cdce36 in __GI___clock_nanosleep (clock_id=clock_id@entry=0, flags=flags@entry=0,
+    req=req@entry=0x7fffffffe0d0, rem=rem@entry=0x7fffffffe0d0)
+    at ../sysdeps/unix/sysv/linux/clock_nanosleep.c:78
+78      ../sysdeps/unix/sysv/linux/clock_nanosleep.c: No such file or directory.
+(gdb) bt
+#0  0x00007ffff7cdce36 in __GI___clock_nanosleep (clock_id=clock_id@entry=0, flags=flags@entry=0,
+    req=req@entry=0x7fffffffe0d0, rem=rem@entry=0x7fffffffe0d0)
+    at ../sysdeps/unix/sysv/linux/clock_nanosleep.c:78
+#1  0x00007ffff7ce1c97 in __GI___nanosleep (req=req@entry=0x7fffffffe0d0,
+    rem=rem@entry=0x7fffffffe0d0) at ../sysdeps/unix/sysv/linux/nanosleep.c:25
+#2  0x00007ffff7ce1bce in __sleep (seconds=0) at ../sysdeps/posix/sleep.c:55
+#3  0x0000555555555294 in main ()
+(gdb) c
+Continuing.
+
+Breakpoint 1, 0x00005555555551f1 in signal_handler ()
+(gdb) bt
+#0  0x00005555555551f1 in signal_handler ()
+#1  <signal handler called>
+#2  0x00007ffff7cdce36 in __GI___clock_nanosleep (clock_id=clock_id@entry=0, flags=flags@entry=0,
+    req=req@entry=0x7fffffffe0d0, rem=rem@entry=0x7fffffffe0d0)
+    at ../sysdeps/unix/sysv/linux/clock_nanosleep.c:78
+#3  0x00007ffff7ce1c97 in __GI___nanosleep (req=req@entry=0x7fffffffe0d0,
+    rem=rem@entry=0x7fffffffe0d0) at ../sysdeps/unix/sysv/linux/nanosleep.c:25
+#4  0x00007ffff7ce1bce in __sleep (seconds=0) at ../sysdeps/posix/sleep.c:55
+#5  0x0000555555555294 in main ()
+
+Above you can see that when the thread was in '__GI___clock_nanosleep', it
+recevied a signal 'SIGSEGV' and execution jumped to the signal_handler.
+
+if we continue from here, you can see that it will again resume the execution as
+below,
+
+(gdb) c
+Continuing.
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
+Running in an infinite loop
